@@ -1,0 +1,33 @@
+user backend
+topic read irrigation/v1/devices/+/telemetry
+topic read irrigation/v1/devices/+/status
+topic read irrigation/v1/devices/+/events
+topic read irrigation/v1/devices/+/acks
+topic read irrigation/v1/devices/+/settings/reported
+topic read irrigation/v1/simulations/+/devices/+/telemetry
+topic read irrigation/v1/simulations/+/devices/+/status
+topic read irrigation/v1/simulations/+/devices/+/events
+topic read irrigation/v1/simulations/+/devices/+/acks
+topic read irrigation/v1/simulations/+/devices/+/settings/reported
+topic write irrigation/v1/devices/+/commands
+topic write irrigation/v1/devices/+/settings/desired
+topic write irrigation/v1/simulations/+/devices/+/commands
+topic write irrigation/v1/simulations/+/devices/+/settings/desired
+
+user device-plant-01
+topic write irrigation/v1/devices/plant-01/telemetry
+topic write irrigation/v1/devices/plant-01/status
+topic write irrigation/v1/devices/plant-01/events
+topic write irrigation/v1/devices/plant-01/acks
+topic write irrigation/v1/devices/plant-01/settings/reported
+topic read irrigation/v1/devices/plant-01/commands
+topic read irrigation/v1/devices/plant-01/settings/desired
+
+user simulator-demo-01
+topic write irrigation/v1/simulations/demo-01/devices/sim-plant-01/telemetry
+topic write irrigation/v1/simulations/demo-01/devices/sim-plant-01/status
+topic write irrigation/v1/simulations/demo-01/devices/sim-plant-01/events
+topic write irrigation/v1/simulations/demo-01/devices/sim-plant-01/acks
+topic write irrigation/v1/simulations/demo-01/devices/sim-plant-01/settings/reported
+topic read irrigation/v1/simulations/demo-01/devices/sim-plant-01/commands
+topic read irrigation/v1/simulations/demo-01/devices/sim-plant-01/settings/desired

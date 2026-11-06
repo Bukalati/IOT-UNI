@@ -1,0 +1,21 @@
+{
+  "name": "smart-irrigation-iot",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "engines": { "node": "24.21.0", "npm": "11.19.0" },
+  "scripts": {
+    "dev:api": "npm run dev -w @irrigation/api",
+    "dev:web": "npm run dev -w @irrigation/web",
+    "build:packages": "npm run build -w @irrigation/contracts && npm run build -w @irrigation/data && npm run build -w @irrigation/simulator && npm run build -w @irrigation/intelligence",
+    "build": "npm run build:packages && npm run build -w @irrigation/api && npm run build -w @irrigation/web",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run build:packages && npm run test --workspaces --if-present",
+    "seed:demo": "node --import tsx scripts/seed-demo.ts",
+    "evaluate:demo": "node --import tsx scripts/evaluate-demo.ts",
+    "analyze:demo": "node --import tsx scripts/analyze-demo.ts",
+    "setup:local": "node --import tsx scripts/setup-local.ts"
+  },
+  "devDependencies": { "typescript": "5.9.3", "tsx": "4.20.6" }
+}
