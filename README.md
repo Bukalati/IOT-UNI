@@ -14,7 +14,7 @@ Node.js 24.21.0, npm 11.19.0, Fastify 5.12.8, Next.js 16.4.5, TypeScript 5.9.3, 
 4. Run `npm run seed:demo` and `npm run analyze:demo` to create eight repeatable simulated runs in `data/demo.sqlite`. `npm run evaluate:demo` writes a separate, time-ordered simulated evaluation to `data/evaluation-demo.json`.
 5. In separate terminals run `npm run dev:api` and `npm run dev:web`; open `http://127.0.0.1:3000/`. The Next.js app proxies `/backend/*` to the local API, so browser sessions remain on one origin. API health is at `http://127.0.0.1:3001/health`.
 
-The seeded device is visibly marked as a simulator; choose its scenario from the selector. The physical device has no readings until real telemetry is commissioned. The simulator does not connect to the pump or impersonate `plant-01`.
+The seeded device is visibly marked as a simulator; choose its scenario from the selector. The physical device has no readings until real telemetry is commissioned. The dashboard shows active alerts and the latest reported calibration. Calibration editing stays unavailable because calibration values must come from physical measurements. The simulator does not connect to the pump or impersonate `plant-01`.
 
 ## Checks
 
@@ -24,4 +24,4 @@ Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. With t
 
 The server does not pass the `hardwareCommissioned` flag, so its command route returns `HARDWARE_NOT_COMMISSIONED` even when a device appears online. Test code enables that flag only against a fake database/publisher. No current software result validates electrical cutoff, MOSFET behavior, tank geometry, soil calibration, or actual water flow. Do not attach a real pump or enable AUTO before H00–H07 evidence and firmware safety tests are complete.
 
-The analytics engine reads persisted validated telemetry and writes only `analysis_runs`, `predictions`, and `insights`. It has no MQTT publisher or command/settings write path. Simulated evaluation results are not physical accuracy claims. See [the execution record](docs/implementation-status.md) for phase gates, exact test evidence, and remaining work.
+The analytics engine reads persisted validated telemetry and writes only `analysis_runs`, `predictions`, and `insights`. It has no MQTT publisher or command/settings write path. Simulated evaluation results are not physical accuracy claims. See [the execution record](docs/implementation-status.md) for phase gates and evidence, and [the software delivery guide](docs/software-delivery.md) for the demo walkthrough and presentation outline.

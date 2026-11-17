@@ -111,6 +111,33 @@ export function buildApp(options: AppOptions = {}) {
       ORDER BY received_at DESC,id DESC LIMIT ?`).all(id, runId, runId, limit);
     return { rows: rows.reverse() };
   });
+  app.get('/api/devices/:id/alerts', { schema: {
+    params: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$' } } },
+    querystring: { type: 'object', additionalProperties: false, properties: {
+      includeResolved: { type: 'string', enum: ['true', 'false'] }, limit: { type: 'integer', minimum: 1, maximum: 200 },
+    } },
+  } }, async (request, reply) => {
+    if (!requireSession(db, request, reply, now(), origin)) return reply;
+    const id = (request.params as { id: string }).id;
+    if (!db.prepare('SELECT 1 FROM devices WHERE id=?').get(id)) return reply.code(404).send({ code: 'DEVICE_NOT_FOUND' });
+    const query = request.query as { includeResolved?: string; limit?: number };
+    const rows = db.prepare(`SELECT id,code,severity,opened_at,resolved_at,details_json FROM alerts
+      WHERE device_id=? AND (?=1 OR resolved_at IS NULL) ORDER BY opened_at DESC,id DESC LIMIT ?`)
+      .all(id, query.includeResolved === 'true' ? 1 : 0, query.limit ?? 50);
+    return { alerts: rows.map(row => ({ ...row, details: JSON.parse(row.details_json as string) })) };
+  });
+  app.get('/api/devices/:id/calibrations', { schema: {
+    params: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$' } } },
+  } }, async (request, reply) => {
+    if (!requireSession(db, request, reply, now(), origin)) return reply;
+    const id = (request.params as { id: string }).id;
+    if (!db.prepare('SELECT 1 FROM devices WHERE id=?').get(id)) return reply.code(404).send({ code: 'DEVICE_NOT_FOUND' });
+    const rows = db.prepare(`SELECT kind,revision,endpoint_a,endpoint_b,status,reported_at FROM calibrations
+      WHERE device_id=? ORDER BY kind,revision DESC`).all(id);
+    const latest = new Map<string, unknown>();
+    for (const row of rows) if (!latest.has(row.kind as string)) latest.set(row.kind as string, row);
+    return { calibrations: [...latest.values()] };
+  });
   app.get('/api/devices/:id/analysis', { schema: {
     params: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string' } } },
     querystring: { type: 'object', additionalProperties: false, properties: { runId: { type: 'string' } } },

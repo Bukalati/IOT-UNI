@@ -14,6 +14,8 @@ type Point = { measured_at: string | null; received_at: string; soil_percent: nu
   soil_quality: string; source: string; simulation_run_id: string | null; seq: number };
 type Command = { id: string; status: string; reason_code: string | null };
 type SimRun = { id: string; scenario: string; seed: number; canonical_hash: string };
+type Alert = { id: number; code: string; severity: string; opened_at: string; resolved_at: string | null; details: Record<string, unknown> };
+type Calibration = { kind: string; revision: number; endpoint_a: number | null; endpoint_b: number | null; status: string; reported_at: string };
 type Analysis = { status: 'VALID' | 'INSUFFICIENT_DATA' | 'UNRELIABLE_TREND'; reason: string | null;
   algorithmVersion: string; source: string; runId: string | null; sampleCount: number; coverage: number | null;
   trainingStart: string | null; trainingEnd: string | null; prediction: { crossingAt: string | null; slopePpPerHour: number | null };
@@ -72,6 +74,8 @@ export default function Dashboard() {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [history, setHistory] = useState<Point[]>([]);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [calibrations, setCalibrations] = useState<Calibration[]>([]);
   const [commandId, setCommandId] = useState<string | null>(null);
   const [command, setCommand] = useState<Command | null>(null);
   const [error, setError] = useState('');
@@ -92,14 +96,18 @@ export default function Dashboard() {
       const runId = simulation ? (selectedRun ?? simulations.runs.find(r => r.scenario === 'gradual-drying')?.id ?? simulations.runs[0]?.id) : null;
       if (simulation && runId && runId !== selectedRun) setSelectedRun(runId);
       const query = runId ? `?runId=${encodeURIComponent(runId)}` : '';
-      const [nextDetail, nextHistory, nextAnalysis] = await Promise.all([
+      const [nextDetail, nextHistory, nextAnalysis, nextAlerts, nextCalibrations] = await Promise.all([
         readJson<Detail>(`/api/devices/${encodeURIComponent(id)}${query}`),
         readJson<{ rows: Point[] }>(`/api/devices/${encodeURIComponent(id)}/history?limit=500${runId ? `&runId=${encodeURIComponent(runId)}` : ''}`),
         readJson<Analysis>(`/api/devices/${encodeURIComponent(id)}/analysis${query}`),
+        readJson<{ alerts: Alert[] }>(`/api/devices/${encodeURIComponent(id)}/alerts?limit=50`),
+        readJson<{ calibrations: Calibration[] }>(`/api/devices/${encodeURIComponent(id)}/calibrations`),
       ]);
       setDetail(nextDetail);
       setHistory(nextHistory.rows);
       setAnalysis(nextAnalysis);
+      setAlerts(nextAlerts.alerts);
+      setCalibrations(nextCalibrations.calibrations);
       if (commandId) setCommand(await readJson<Command>(`/api/commands/${encodeURIComponent(commandId)}`));
       setError('');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'خطای دریافت داده'); }
@@ -186,6 +194,16 @@ export default function Dashboard() {
         <td>{date(point.measured_at)}</td><td>{percent(point.soil_percent)}</td><td>{point.soil_quality}</td>
         <td>{point.source === 'simulator' ? 'شبیه‌سازی' : 'واقعی'}</td></tr>)}</tbody></table>
       {history.length === 0 && <p className="empty">هنوز اندازه‌گیری ثبت نشده است.</p>}</div></section></>}
+    {csrf && <div className="grid table-card"><section className="card" aria-labelledby="alerts-title"><h2 id="alerts-title">هشدارهای فعال</h2>
+      {alerts.length ? <ul className="list">{alerts.map(alert => <li key={alert.id}><b>{alert.code}</b> · {alert.severity} · {date(alert.opened_at)}</li>)}</ul>
+        : <p className="empty">هشدار فعالی ثبت نشده است.</p>}</section>
+      <section className="card" aria-labelledby="calibration-title"><h2 id="calibration-title">وضعیت کالیبراسیون</h2>
+        {calibrations.length ? <ul className="list">{calibrations.map(item => <li key={item.kind}>
+          <b>{item.kind === 'soil' ? 'رطوبت خاک' : 'مخزن'}</b> · {item.status} · نسخه {item.revision}
+          {item.endpoint_a !== null && item.endpoint_b !== null ? ` · ${item.endpoint_a} / ${item.endpoint_b}` : ''}
+        </li>)}</ul> : <p className="empty">هنوز کالیبراسیون دستگاه گزارش نشده است.</p>}
+        <p className="notice">کالیبراسیون از این صفحه قابل تغییر نیست؛ باید روی دستگاه اندازه‌گیری و گزارش شود.</p>
+      </section></div>}
     {error && <div className="error" role="alert">{error}</div>}
   </>;
 }

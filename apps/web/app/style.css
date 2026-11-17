@@ -46,5 +46,8 @@ table { width: 100%; border-collapse: collapse; text-align: right; min-width: 46
 th, td { padding: .65rem; border-bottom: 1px solid var(--border); }
 th { color: var(--muted); }
 .empty { padding: 2rem 0; color: var(--muted); }
+.list { margin: 0; padding-inline-start: 1.25rem; display: grid; gap: .6rem; }
+.list li { overflow-wrap: anywhere; }
+.list li::marker { color: var(--green); }
 .error { margin-top: 1rem; background: #f9e8e6; color: #9d2b2b; border: 1px solid #e6c1bb; border-radius: 10px; padding: .8rem; }
 @media (max-width: 760px) { .shell { padding-top: 1rem; } .topbar { align-items: flex-start; } .metrics, .grid { grid-template-columns: 1fr; } .card { padding: 1rem; } }
