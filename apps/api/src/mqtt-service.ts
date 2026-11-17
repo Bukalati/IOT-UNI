@@ -2,7 +2,8 @@ import { connect, type MqttClient } from 'mqtt';
 import type { DatabaseSync } from 'node:sqlite';
 import { validatePacket } from '@irrigation/contracts';
 import { currentStatus, ingestTelemetry, markPublished, noteLivePacket, pendingCommands,
-  recordAck, recordEvent, recordStatus, saveReportedSettings, hashPacket } from '@irrigation/data';
+  recordAck, recordEvent, recordStatus, saveReportedSettings, hashPacket,
+  pendingDesiredSettings, markDesiredSettingsPublished, requestDesiredSettingsReplay } from '@irrigation/data';
 
 export type MessageNotice = { kind: string; deviceId: string; at: string; result: string };
 export type Publisher = { connected: boolean; publish(topic: string, payload: string): Promise<void> };
@@ -30,6 +31,7 @@ export function consumePacket(db: DatabaseSync, topic: string, bytes: Buffer, re
         const p = packet.payload as Record<string, unknown>;
         recordStatus(db, { deviceId: identity.deviceId, availability: p.availability as 'online' | 'offline',
           bootId: p.bootId as string | null, reason: p.reason as string, receivedAt: at, retained });
+        if (p.availability === 'online' && !retained) requestDesiredSettingsReplay(db, identity.deviceId);
         break;
       }
       case 'events': {
@@ -77,6 +79,11 @@ export async function flushOutbox(db: DatabaseSync, publisher: Publisher, now: D
     if (currentStatus(db, id, now.toISOString()).availability !== 'online') continue;
     await publisher.publish(command.topic, command.packet);
     if (markPublished(db, command.id, now.toISOString())) count++;
+  }
+  for (const settings of pendingDesiredSettings(db)) {
+    if (currentStatus(db, settings.device_id, now.toISOString()).availability !== 'online') continue;
+    await publisher.publish(settings.topic, settings.packet);
+    if (markDesiredSettingsPublished(db, settings.device_id, settings.revision, now.toISOString())) count++;
   }
   return count;
 }

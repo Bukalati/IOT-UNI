@@ -16,6 +16,8 @@ type Command = { id: string; status: string; reason_code: string | null };
 type SimRun = { id: string; scenario: string; seed: number; canonical_hash: string };
 type Alert = { id: number; code: string; severity: string; opened_at: string; resolved_at: string | null; details: Record<string, unknown> };
 type Calibration = { kind: string; revision: number; endpoint_a: number | null; endpoint_b: number | null; status: string; reported_at: string };
+type SettingsSnapshot = { revision: number; status?: string; reason_code?: string | null;
+  values: Record<string, unknown>; issued_at?: string; received_at: string };
 type Analysis = { status: 'VALID' | 'INSUFFICIENT_DATA' | 'UNRELIABLE_TREND'; reason: string | null;
   algorithmVersion: string; source: string; runId: string | null; sampleCount: number; coverage: number | null;
   trainingStart: string | null; trainingEnd: string | null; prediction: { crossingAt: string | null; slopePpPerHour: number | null };
@@ -76,6 +78,7 @@ export default function Dashboard() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [calibrations, setCalibrations] = useState<Calibration[]>([]);
+  const [settingsHistory, setSettingsHistory] = useState<{ desired: SettingsSnapshot[]; reported: SettingsSnapshot[] }>({ desired: [], reported: [] });
   const [commandId, setCommandId] = useState<string | null>(null);
   const [command, setCommand] = useState<Command | null>(null);
   const [error, setError] = useState('');
@@ -96,18 +99,20 @@ export default function Dashboard() {
       const runId = simulation ? (selectedRun ?? simulations.runs.find(r => r.scenario === 'gradual-drying')?.id ?? simulations.runs[0]?.id) : null;
       if (simulation && runId && runId !== selectedRun) setSelectedRun(runId);
       const query = runId ? `?runId=${encodeURIComponent(runId)}` : '';
-      const [nextDetail, nextHistory, nextAnalysis, nextAlerts, nextCalibrations] = await Promise.all([
+      const [nextDetail, nextHistory, nextAnalysis, nextAlerts, nextCalibrations, nextSettingsHistory] = await Promise.all([
         readJson<Detail>(`/api/devices/${encodeURIComponent(id)}${query}`),
         readJson<{ rows: Point[] }>(`/api/devices/${encodeURIComponent(id)}/history?limit=500${runId ? `&runId=${encodeURIComponent(runId)}` : ''}`),
         readJson<Analysis>(`/api/devices/${encodeURIComponent(id)}/analysis${query}`),
         readJson<{ alerts: Alert[] }>(`/api/devices/${encodeURIComponent(id)}/alerts?limit=50`),
         readJson<{ calibrations: Calibration[] }>(`/api/devices/${encodeURIComponent(id)}/calibrations`),
+        readJson<{ desired: SettingsSnapshot[]; reported: SettingsSnapshot[] }>(`/api/devices/${encodeURIComponent(id)}/settings/history?limit=10`),
       ]);
       setDetail(nextDetail);
       setHistory(nextHistory.rows);
       setAnalysis(nextAnalysis);
       setAlerts(nextAlerts.alerts);
       setCalibrations(nextCalibrations.calibrations);
+      setSettingsHistory(nextSettingsHistory);
       if (commandId) setCommand(await readJson<Command>(`/api/commands/${encodeURIComponent(commandId)}`));
       setError('');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'خطای دریافت داده'); }
@@ -204,6 +209,16 @@ export default function Dashboard() {
         </li>)}</ul> : <p className="empty">هنوز کالیبراسیون دستگاه گزارش نشده است.</p>}
         <p className="notice">کالیبراسیون از این صفحه قابل تغییر نیست؛ باید روی دستگاه اندازه‌گیری و گزارش شود.</p>
       </section></div>}
+    {csrf && <section className="card table-card" aria-labelledby="settings-history-title"><h2 id="settings-history-title">تاریخچه تنظیمات درخواستی و گزارش‌شده</h2>
+      <div className="grid">
+        <div><h3>درخواستی</h3><ul className="list">{settingsHistory.desired.map(item => <li key={item.revision}>
+          نسخه {item.revision} · {item.status} · {date(item.issued_at ?? item.received_at)} · حالت {String(item.values.mode ?? '—')}
+        </li>)}</ul>{settingsHistory.desired.length === 0 && <p className="empty">درخواستی ثبت نشده است.</p>}</div>
+        <div><h3>گزارش‌شده از دستگاه</h3><ul className="list">{settingsHistory.reported.map(item => <li key={`${item.revision}-${item.received_at}`}>
+          نسخه {item.revision} · {date(item.received_at)} · حالت {String(item.values.mode ?? '—')}
+        </li>)}</ul>{settingsHistory.reported.length === 0 && <p className="empty">هنوز گزارشی از دستگاه نرسیده است.</p>}</div>
+      </div><p className="notice">وضعیت گزارش‌شده از دستگاه نشان می‌دهد چه تنظیمی اعمال شده؛ درخواست به‌تنهایی به معنی اعمال‌شدن نیست.</p>
+    </section>}
     {error && <div className="error" role="alert">{error}</div>}
   </>;
 }

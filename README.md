@@ -11,7 +11,7 @@ Node.js 24.21.0, npm 11.19.0, Fastify 5.12.8, Next.js 16.4.5, TypeScript 5.9.3, 
 1. Select Node 24.21.0 (`.nvmrc`) and run `npm ci`.
 2. Run `python3 broker/init_secrets.py`, then `npm run setup:local`. The generated operator password is in ignored `broker/secrets/operator-password.txt`; `.env` and all broker credentials are ignored. Do not commit or share them.
 3. Run `docker compose up -d broker` and `python3 broker/test_acl.py`.
-4. Run `npm run seed:demo` and `npm run analyze:demo` to create eight repeatable simulated runs in `data/demo.sqlite`. `npm run evaluate:demo` writes a separate, time-ordered simulated evaluation to `data/evaluation-demo.json`.
+4. Run `npm run seed:demo` and `npm run analyze:demo` to create eight repeatable simulated runs in `data/demo.sqlite`. `npm run evaluate:demo` writes a separate, time-ordered simulated evaluation to `data/evaluation-demo.json`; `npm run export:demo` writes a provenance-labeled simulator-only evidence export.
 5. In separate terminals run `npm run dev:api` and `npm run dev:web`; open `http://127.0.0.1:3000/`. The Next.js app proxies `/backend/*` to the local API, so browser sessions remain on one origin. API health is at `http://127.0.0.1:3001/health`.
 
 The seeded device is visibly marked as a simulator; choose its scenario from the selector. The physical device has no readings until real telemetry is commissioned. The dashboard shows active alerts and the latest reported calibration. Calibration editing stays unavailable because calibration values must come from physical measurements. The simulator does not connect to the pump or impersonate `plant-01`.
@@ -22,6 +22,6 @@ Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. With t
 
 ## Safety and scope
 
-The server does not pass the `hardwareCommissioned` flag, so its command route returns `HARDWARE_NOT_COMMISSIONED` even when a device appears online. Test code enables that flag only against a fake database/publisher. No current software result validates electrical cutoff, MOSFET behavior, tank geometry, soil calibration, or actual water flow. Do not attach a real pump or enable AUTO before H00–H07 evidence and firmware safety tests are complete.
+The server does not pass the `hardwareCommissioned` flag, so command and settings routes return `HARDWARE_NOT_COMMISSIONED` even when a device appears online. Test code enables that flag only against a fake database/publisher. No current software result validates electrical cutoff, MOSFET behavior, tank geometry, soil calibration, or actual water flow. Do not attach a real pump or enable AUTO before H00–H07 evidence and firmware safety tests are complete.
 
 The analytics engine reads persisted validated telemetry and writes only `analysis_runs`, `predictions`, and `insights`. It has no MQTT publisher or command/settings write path. Simulated evaluation results are not physical accuracy claims. See [the execution record](docs/implementation-status.md) for phase gates and evidence, and [the software delivery guide](docs/software-delivery.md) for the demo walkthrough and presentation outline.

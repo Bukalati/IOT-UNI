@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { hashPacket, markPublished, migrate, openDatabase, pendingCommands,
-  queueCommand, recordAck, recordEvent, registerDevice, saveDesiredSettings, saveReportedSettings } from '../src/index.ts';
+  queueCommand, recordAck, recordEvent, registerDevice, saveDesiredSettings, saveReportedSettings,
+  queueDesiredSettings, pendingDesiredSettings, markDesiredSettingsPublished, requestDesiredSettingsReplay } from '../src/index.ts';
 
 const at = '2026-11-06T15:00:00.000Z';
 const bootId = '00000000-0000-4000-8000-000000000001';
@@ -80,5 +81,20 @@ test('desired settings only become applied after matching report', () => {
   assert.equal(saveReportedSettings(db, 'plant-01', 1, values, 1, null, null, '2026-11-06T15:00:01.000Z'), 'applied');
   assert.equal(db.prepare('SELECT status FROM settings_desired').get()?.status, 'applied');
   assert.throws(() => saveDesiredSettings(db, 'plant-01', 1, values, at, at));
+  db.close();
+});
+
+test('desired settings publish intent is durable and replayed at the same revision after live reconnect', () => {
+  const db = readyDb();
+  const values = { mode: 'OFF' };
+  const packet = { schemaVersion: 1, deviceId: 'plant-01', revision: 1, values, issuedAt: at };
+  const topic = 'irrigation/v1/devices/plant-01/settings/desired';
+  assert.equal(queueDesiredSettings(db, 'plant-01', values, at, topic, packet), 1);
+  assert.equal(pendingDesiredSettings(db).length, 1);
+  assert.equal(markDesiredSettingsPublished(db, 'plant-01', 1, at), true);
+  assert.equal(pendingDesiredSettings(db).length, 0);
+  assert.equal(requestDesiredSettingsReplay(db, 'plant-01'), true);
+  assert.equal(pendingDesiredSettings(db).length, 1);
+  assert.equal(pendingDesiredSettings(db)[0].packet, JSON.stringify(packet));
   db.close();
 });

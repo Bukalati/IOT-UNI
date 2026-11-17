@@ -15,6 +15,7 @@
     "seed:demo": "node --import tsx scripts/seed-demo.ts",
     "evaluate:demo": "node --import tsx scripts/evaluate-demo.ts",
     "analyze:demo": "node --import tsx scripts/analyze-demo.ts",
+    "export:demo": "node --import tsx scripts/export-demo.ts",
     "setup:local": "node --import tsx scripts/setup-local.ts"
   },
   "devDependencies": { "typescript": "5.9.3", "tsx": "4.20.6" }

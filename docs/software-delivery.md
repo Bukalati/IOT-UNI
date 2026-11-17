@@ -11,8 +11,9 @@ Use Node.js 24.21.0 and npm 11.19.0. From the repository root:
 3. Create the operator password and local API configuration with `npm run setup:local`. The password is written to ignored `broker/secrets/operator-password.txt`.
 4. Start Mosquitto with `docker compose up -d broker`.
 5. Seed the demo using `npm run seed:demo`, then run `npm run analyze:demo` and `npm run evaluate:demo`.
-6. In separate terminals run `npm run dev:api` and `npm run dev:web`; open `http://127.0.0.1:3000/` and sign in with the generated operator password.
-7. Select the simulator and the gradual-drying run to view its history and advisory analysis. Select other scenarios to see distinct data quality and safety states.
+6. Create a portable simulation-only evidence file with `npm run export:demo`. It writes `data/demo-export.json` with source packets, receipt times, row hashes and deterministic input hashes. It never exports physical-device telemetry.
+7. In separate terminals run `npm run dev:api` and `npm run dev:web`; open `http://127.0.0.1:3000/` and sign in with the generated operator password.
+8. Select the simulator and the gradual-drying run to view its history and advisory analysis. Select other scenarios to see distinct data quality and safety states.
 
 Stop the web and API processes with Ctrl+C. Stop only the local broker container with `docker compose down`. Local secrets and generated demo data remain ignored by Git.
 
@@ -43,4 +44,4 @@ Stop the web and API processes with Ctrl+C. Stop only the local broker container
 
 ## Current technical gates
 
-The device firmware, board-specific pins, calibration workflow, physical alerts, settings writes, and actual pump operation require board/parts information and signed measurements. A normal server deployment never turns on the hardware commissioning flag. Do not describe the current software as a completed irrigation controller.
+The device firmware, board-specific pins, calibration measurements, device-side ACK/reconnect proof, and actual pump operation require board/parts information and signed measurements. The server has an authenticated, validated settings request route backed by a durable outbox, but production still blocks it until commissioning. A normal server deployment never turns on the hardware commissioning flag. Do not describe the current software as a completed irrigation controller.

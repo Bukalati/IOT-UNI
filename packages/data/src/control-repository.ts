@@ -135,6 +135,46 @@ export function saveDesiredSettings(db: DatabaseSync, deviceId: string, revision
   });
 }
 
+export function queueDesiredSettings(db: DatabaseSync, deviceId: string, values: Record<string, unknown>,
+  issuedAt: string, topic: string, packet: Record<string, unknown>): number {
+  return transaction(db, () => {
+    const latest = db.prepare('SELECT MAX(revision) AS revision FROM settings_desired WHERE device_id=?')
+      .get(deviceId) as { revision: number | null };
+    const revision = (latest.revision ?? 0) + 1;
+    if (packet.deviceId !== deviceId || packet.revision !== revision || packet.issuedAt !== issuedAt ||
+        JSON.stringify(packet.values) !== JSON.stringify(values)) throw new Error('Invalid desired settings packet');
+    db.prepare(`INSERT INTO settings_desired(device_id,revision,values_json,issued_at,received_at,status)
+      VALUES(?,?,?,?,?,'pending')`).run(deviceId, revision, JSON.stringify(values), issuedAt, issuedAt);
+    db.prepare('INSERT INTO settings_outbox(device_id,revision,topic,payload_json) VALUES(?,?,?,?)')
+      .run(deviceId, revision, topic, JSON.stringify(packet));
+    return revision;
+  });
+}
+
+export function pendingDesiredSettings(db: DatabaseSync): { device_id: string; revision: number; topic: string; packet: string }[] {
+  return db.prepare(`SELECT o.device_id,o.revision,o.topic,o.payload_json AS packet
+    FROM settings_outbox o JOIN settings_desired d USING(device_id,revision)
+    WHERE o.published_at IS NULL AND d.status='pending' ORDER BY d.issued_at,o.revision`)
+    .all() as { device_id: string; revision: number; topic: string; packet: string }[];
+}
+
+export function markDesiredSettingsPublished(db: DatabaseSync, deviceId: string, revision: number, at: string): boolean {
+  return transaction(db, () => {
+    const result = db.prepare(`UPDATE settings_outbox SET published_at=? WHERE device_id=? AND revision=?
+      AND published_at IS NULL AND EXISTS(SELECT 1 FROM settings_desired WHERE device_id=? AND revision=? AND status='pending')`)
+      .run(at, deviceId, revision, deviceId, revision);
+    return Number(result.changes) === 1;
+  });
+}
+
+export function requestDesiredSettingsReplay(db: DatabaseSync, deviceId: string): boolean {
+  const result = db.prepare(`UPDATE settings_outbox SET published_at=NULL WHERE device_id=? AND revision=(
+    SELECT MAX(revision) FROM settings_desired WHERE device_id=? AND status='pending'
+  ) AND EXISTS(SELECT 1 FROM settings_desired WHERE device_id=? AND revision=settings_outbox.revision AND status='pending')`)
+    .run(deviceId, deviceId, deviceId);
+  return Number(result.changes) === 1;
+}
+
 export function saveReportedSettings(db: DatabaseSync, deviceId: string, revision: number,
   values: Record<string, unknown>, calibrationRevision: number, rejectedRevision: number | null,
   reasonCode: string | null, receivedAt: string): 'applied' | 'rejected' | 'mismatch' {

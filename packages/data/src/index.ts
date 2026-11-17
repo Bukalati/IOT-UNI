@@ -31,6 +31,8 @@ export function migrate(db: DatabaseSync): void {
   db.prepare('INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(1,?)').run(new Date().toISOString());
   db.exec(readFileSync(new URL('../migrations/002_analytics.sql', import.meta.url), 'utf8'));
   db.prepare('INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(2,?)').run(new Date().toISOString());
+  db.exec(readFileSync(new URL('../migrations/003_settings_outbox.sql', import.meta.url), 'utf8'));
+  db.prepare('INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(3,?)').run(new Date().toISOString());
 }
 
 export function registerSimulationRun(db: DatabaseSync, run: {

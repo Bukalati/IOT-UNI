@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type { DatabaseSync } from 'node:sqlite';
 import Fastify from 'fastify';
-import { currentStatus, migrate, openDatabase, queueCommand, registerDevice } from '@irrigation/data';
+import { currentStatus, migrate, openDatabase, queueCommand, queueDesiredSettings, registerDevice } from '@irrigation/data';
 import { validatePacket } from '@irrigation/contracts';
 import { analyze, type Point } from '@irrigation/intelligence';
 import { createSession, hashPassword, requireSession, sessionCookie, sessionForRequest, verifyPassword } from './auth.js';
@@ -137,6 +137,46 @@ export function buildApp(options: AppOptions = {}) {
     const latest = new Map<string, unknown>();
     for (const row of rows) if (!latest.has(row.kind as string)) latest.set(row.kind as string, row);
     return { calibrations: [...latest.values()] };
+  });
+  app.get('/api/devices/:id/settings/history', { schema: {
+    params: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$' } } },
+    querystring: { type: 'object', additionalProperties: false, properties: { limit: { type: 'integer', minimum: 1, maximum: 100 } } },
+  } }, async (request, reply) => {
+    if (!requireSession(db, request, reply, now(), origin)) return reply;
+    const id = (request.params as { id: string }).id;
+    if (!db.prepare('SELECT 1 FROM devices WHERE id=?').get(id)) return reply.code(404).send({ code: 'DEVICE_NOT_FOUND' });
+    const limit = (request.query as { limit?: number }).limit ?? 30;
+    const desired = db.prepare(`SELECT revision,values_json,status,issued_at,received_at FROM settings_desired
+      WHERE device_id=? ORDER BY revision DESC LIMIT ?`).all(id, limit);
+    const reported = db.prepare(`SELECT revision,values_json,calibration_revision,rejected_revision,reason_code,received_at
+      FROM settings_reported WHERE device_id=? ORDER BY revision DESC,received_at DESC LIMIT ?`).all(id, limit);
+    return { desired: desired.map(row => ({ ...row, values: JSON.parse(row.values_json as string) })),
+      reported: reported.map(row => ({ ...row, values: JSON.parse(row.values_json as string) })) };
+  });
+  app.post('/api/devices/:id/settings', { schema: {
+    params: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$' } } },
+    body: { type: 'object', additionalProperties: false, required: ['values'], properties: { values: { type: 'object' } } },
+  } }, async (request, reply) => {
+    if (!requireSession(db, request, reply, now(), origin, true)) return reply;
+    const id = (request.params as { id: string }).id;
+    const device = db.prepare('SELECT identity_kind FROM devices WHERE id=?').get(id) as { identity_kind: string } | undefined;
+    if (!device || device.identity_kind !== 'physical') return reply.code(404).send({ code: 'DEVICE_NOT_FOUND' });
+    if (!options.hardwareCommissioned) return reply.code(423).send({ code: 'HARDWARE_NOT_COMMISSIONED' });
+    const status = currentStatus(db, id, now().toISOString());
+    if (status.availability !== 'online' || !status.bootId ||
+        !db.prepare('SELECT 1 FROM device_boots WHERE device_id=? AND boot_id=?').get(id, status.bootId))
+      return reply.code(409).send({ code: 'DEVICE_NOT_FRESH' });
+    const issuedAt = now().toISOString();
+    const latest = db.prepare('SELECT MAX(revision) AS revision FROM settings_desired WHERE device_id=?').get(id) as { revision: number | null };
+    const packet = { schemaVersion: 1, deviceId: id, revision: (latest.revision ?? 0) + 1,
+      values: (request.body as { values: Record<string, unknown> }).values, issuedAt };
+    const topic = `irrigation/v1/devices/${id}/settings/desired`;
+    const validation = validatePacket(topic, Buffer.from(JSON.stringify(packet)));
+    if (!validation.ok) return reply.code(400).send({ code: validation.code });
+    const revision = queueDesiredSettings(db, id, packet.values, issuedAt, topic, packet);
+    emit({ kind: 'settings', deviceId: id, at: issuedAt, result: 'queued' });
+    if (options.publisher) void flushOutbox(db, options.publisher, now()).catch(() => undefined);
+    return reply.code(202).send({ revision, status: 'pending', issuedAt });
   });
   app.get('/api/devices/:id/analysis', { schema: {
     params: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string' } } },
